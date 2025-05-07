@@ -42,201 +42,228 @@
 #ifdef RPPICOMIDI_PICO_W
 #include "ble_midi_manager.h"
 #endif
-namespace rppicomidi
-{
-    class Midi2PioUsbhub
-    {
+namespace rppicomidi {
+  /*
+  struct octave_t {
+    uint8_t pin;
+    uint8_t offset;
+    uint8_t chan;
+  };
+  */
+
+  class Midi2PioUsbhub
+  {
     public:
-        // Singleton Pattern
+      // Singleton Pattern
 
-        /**
-         * @brief Get the Instance object
-         *
-         * @return the singleton instance
-         */
-        static Midi2PioUsbhub &instance()
-        {
-            static Midi2PioUsbhub _instance; // Guaranteed to be destroyed.
-                                        // Instantiated on first use.
-            return _instance;
-        }
-        Midi2PioUsbhub(Midi2PioUsbhub const &) = delete;
-        void operator=(Midi2PioUsbhub const &) = delete;
-        void blink_led();
-        void flush_usb_tx();
-        void poll_midi_uart_rx();
-        void poll_midi_usbdev_rx();
+      /**
+       * @brief Get the Instance object
+       *
+       * @return the singleton instance
+       */
+      static Midi2PioUsbhub &instance()
+      {
+        static Midi2PioUsbhub _instance; // Guaranteed to be destroyed.
+                                         // Instantiated on first use.
+        return _instance;
+      }
+      Midi2PioUsbhub(Midi2PioUsbhub const &) = delete;
+      void operator=(Midi2PioUsbhub const &) = delete;
+      void blink_led();
+      void flush_usb_tx();
+      void poll_midi_uart_rx();
+      void poll_midi_usbdev_rx();
 #ifdef RPPICOMIDI_PICO_W
-        void poll_ble_rx();
+      void poll_ble_rx();
 #endif
-        /**
-         * @brief construct a nickname string from the input parameters
-         * 
-         * @param nickname a reference to the std::string that will store the new nickname
-         * @param vid the Connected MIDI Device's Vendor ID
-         * @param pid the Connected MIDI Device's Product ID
-         * @param cable the port's virtual cable number (0-15)
-         * @param is_from is true if the hub terminal is from (connected to the Connected MIDI Device's MIDI OUT)
-         */
-        void make_default_nickname(std::string& nickname, uint16_t vid, uint16_t pid, uint8_t cable, bool is_from);
-        void get_info_from_default_nickname(std::string nickname, uint16_t &vid, uint16_t &pid, uint8_t &cable, bool &is_from);
-        struct Midi_device_info
-        {
-            uint16_t vid;
-            uint16_t pid;
-            uint8_t tx_cables;
-            uint8_t rx_cables;
-            std::string product_name;
-            bool configured;
-        };
+      /**
+       * @brief construct a nickname string from the input parameters
+       * 
+       * @param nickname a reference to the std::string that will store the new nickname
+       * @param vid the Connected MIDI Device's Vendor ID
+       * @param pid the Connected MIDI Device's Product ID
+       * @param cable the port's virtual cable number (0-15)
+       * @param is_from is true if the hub terminal is from (connected to the Connected MIDI Device's MIDI OUT)
+       */
+      void make_default_nickname(std::string& nickname, uint16_t vid, uint16_t pid, uint8_t cable, bool is_from);
+      void get_info_from_default_nickname(std::string nickname, uint16_t &vid, uint16_t &pid, uint8_t &cable, bool &is_from);
+      struct Midi_device_info
+      {
+        uint16_t vid;
+        uint16_t pid;
+        uint8_t tx_cables;
+        uint8_t rx_cables;
+        std::string product_name;
+        bool configured;
+      };
 
-        struct Midi_out_port
-        {
-            uint8_t devaddr;
-            uint8_t cable;
-            std::string nickname;
-        };
+      struct Midi_out_port
+      {
+        uint8_t devaddr;
+        uint8_t cable;
+        std::string nickname;
+      };
 
-        struct Midi_in_port
-        {
-            uint8_t devaddr;
-            uint8_t cable;
-            std::string nickname;
-            std::vector<Midi_out_port *> sends_data_to_list;
-        };
-        void *midi_uart_instance;
-        void tuh_mount_cb(uint8_t dev_addr);
-        void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx);
-        void tuh_midi_unmount_cb(uint8_t dev_addr, uint8_t instance);
-        void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets);
-        /**
-         * @brief create JSON formatted string that represents the current settings
-         *
-         * The JSON format is
-         * {
-         *     "nicknames":{
-         *         default_nickname: nickname,
-         *         default_nickname: nickname,
-         *               ...
-         *         default_nickname: nickname
-         *     },
-         *     "routing": {
-         *         from_nickname_string:[nickname_string, nickname_string,..., nickname_string],
-         *         from_nickname_string:[nickname_string, nickname_string,..., nickname_string],
-         *               ...
-         *         from_nickname_string:[nickname_string, nickname_string,..., nickname_string]
-         *     }
-         * }
-         * @param serialized_settings
-         */
-        void serialize(std::string &serialized_settings);
+      struct Midi_in_port
+      {
+        uint8_t devaddr;
+        uint8_t cable;
+        std::string nickname;
+        std::vector<Midi_out_port *> sends_data_to_list;
+      };
+      void *midi_uart_instance;
+      void tuh_mount_cb(uint8_t dev_addr);
+      void tuh_midi_mount_cb(uint8_t dev_addr, uint8_t in_ep, uint8_t out_ep, uint8_t num_cables_rx, uint16_t num_cables_tx);
+      void tuh_midi_unmount_cb(uint8_t dev_addr, uint8_t instance);
+      void tuh_midi_rx_cb(uint8_t dev_addr, uint32_t num_packets);
+      /**
+       * @brief create JSON formatted string that represents the current settings
+       *
+       * The JSON format is
+       * {
+       *     "nicknames":{
+       *         default_nickname: nickname,
+       *         default_nickname: nickname,
+       *               ...
+       *         default_nickname: nickname
+       *     },
+       *     "routing": {
+       *         from_nickname_string:[nickname_string, nickname_string,..., nickname_string],
+       *         from_nickname_string:[nickname_string, nickname_string,..., nickname_string],
+       *               ...
+       *         from_nickname_string:[nickname_string, nickname_string,..., nickname_string]
+       *     }
+       * }
+       * @param serialized_settings
+       */
+      void serialize(std::string &serialized_settings);
 #ifdef RPPICOMIDI_PICO_W
-        bool deserialize(std::string &serialized_settings, bool skip_bluetooth);
+      bool deserialize(std::string &serialized_settings, bool skip_bluetooth);
 #else
-        bool deserialize(std::string &serialized_string);
+      bool deserialize(std::string &serialized_string);
 #endif
-        /**
-         * @brief connect the MIDI stream from the device and port from_nickname
-         * to the device and port to_nickname
-         *
-         * @param from_nickname the nickname that represents the device an port
-         * of the MIDI stream source
-         * @param to_nickname the nickname that represents the device an port
-         * of the MIDI stream sink
-         * @return int 0 if successful, -1 if the to_nickname is invalid, -2
-         * if the from_nickname is invalid
-         */
-        int connect(const std::string& from_nickname, const std::string& to_nickname);
+      /**
+       * @brief connect the MIDI stream from the device and port from_nickname
+       * to the device and port to_nickname
+       *
+       * @param from_nickname the nickname that represents the device an port
+       * of the MIDI stream source
+       * @param to_nickname the nickname that represents the device an port
+       * of the MIDI stream sink
+       * @return int 0 if successful, -1 if the to_nickname is invalid, -2
+       * if the from_nickname is invalid
+       */
+      int connect(const std::string& from_nickname, const std::string& to_nickname);
 
-        /**
-         * @brief disconnect the MIDI stream from the device and port from_nickname
-         * to the device and port to_nickname
-         *
-         * @param from_nickname the nickname that represents the device an port
-         * of the MIDI stream source
-         * @param to_nickname the nickname that represents the device an port
-         * of the MIDI stream sink
-         * @return int 0 if successful, -1 if the to_nickname is invalid, -2
-         * if the from_nickname is invalid
-         */
-        int disconnect(const std::string& from_nickname, const std::string& to_nickname);
+      /**
+       * @brief disconnect the MIDI stream from the device and port from_nickname
+       * to the device and port to_nickname
+       *
+       * @param from_nickname the nickname that represents the device an port
+       * of the MIDI stream source
+       * @param to_nickname the nickname that represents the device an port
+       * of the MIDI stream sink
+       * @return int 0 if successful, -1 if the to_nickname is invalid, -2
+       * if the from_nickname is invalid
+       */
+      int disconnect(const std::string& from_nickname, const std::string& to_nickname);
 
-        /**
-         * @brief clear all MIDI stream connections
-         *
-         */
-        void reset();
+      /**
+       * @brief clear all MIDI stream connections
+       *
+       */
+      void reset();
 
-        /**
-         * @brief rename a device and port nickname
-         *
-         * @param old_nickname the previous nickname of the device and port
-         * @param new_nickname the new nickname of the device and port
-         * @return int -1 if the new_nickname is already in use, -2 if the old_nickname is not found,
-         * 1 if FROM nickname renamed successfully, 2 if TO nickname renamed successfully
-         */
-        int rename(const std::string& old_nickname, const std::string& new_nickname);
+      /**
+       * @brief rename a device and port nickname
+       *
+       * @param old_nickname the previous nickname of the device and port
+       * @param new_nickname the new nickname of the device and port
+       * @return int -1 if the new_nickname is already in use, -2 if the old_nickname is not found,
+       * 1 if FROM nickname renamed successfully, 2 if TO nickname renamed successfully
+       */
+      int rename(const std::string& old_nickname, const std::string& new_nickname);
 
-        /**
-         * @brief route the MIDI traffic
-         *
-         */
-        void task();
+      /**
+       * @brief route the MIDI traffic
+       *
+       */
+      void task();
 
-        Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > ble_devaddr) return nullptr; return &attached_devices[addr]; }
-        bool is_device_configured(size_t addr) { Midi_device_info* dev = get_attached_device(addr); if (dev) return dev->configured; return false; }
-        const std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
-        const std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
-        void notify_cdc_state_changed() {cdc_state_has_changed = true; }
+      Midi_device_info* get_attached_device(size_t addr) { if (addr < 1 || addr > ble_devaddr) return nullptr; return &attached_devices[addr]; }
+      bool is_device_configured(size_t addr) { Midi_device_info* dev = get_attached_device(addr); if (dev) return dev->configured; return false; }
+      const std::vector<Midi_out_port *>& get_midi_out_port_list() {return midi_out_port_list; }
+      const std::vector<Midi_in_port *>& get_midi_in_port_list() {return midi_in_port_list; }
+      void notify_cdc_state_changed() {cdc_state_has_changed = true; }
 #if RPPICOMIDI_PICO_W
-        bool blem_init(bool is_client_) { return blem.init(&blem, is_client_);}
-        bool blem_init() {return blem_init(blem_is_client); }
-        void load_current_preset(bool skip_bluetooth);
+      bool blem_init(bool is_client_) { return blem.init(&blem, is_client_);}
+      bool blem_init() {return blem_init(blem_is_client); }
+      void load_current_preset(bool skip_bluetooth);
 #else
-        void load_current_preset();
+      void load_current_preset();
 #endif
-        Midi_out_port * default_out_port;
-        void route_midi(Midi_out_port* out_port, const uint8_t* buffer, uint32_t bytes_read);
-        void note(bool on, uint8_t note, uint8_t velocity);
+      Midi_out_port * default_out_port;
+      void route_midi(Midi_out_port* out_port, const uint8_t* buffer, uint32_t bytes_read);
+      void note(bool on, uint8_t note, uint8_t velocity, uint8_t chan);
+      void scan_timer();
+      static const uint8_t octaves = 9;
+      //octave_t octave[octaves];
+      uint row_note_offset[octaves];
+      uint row_pin[octaves];
+      uint row_chan[octaves];
     private:
-        Midi2PioUsbhub();
-        Preset_manager preset_manager;
+      Midi2PioUsbhub();
+      Preset_manager preset_manager;
 
-        static void langid_cb(tuh_xfer_t *xfer);
-        static void prod_str_cb(tuh_xfer_t *xfer);
-        // UART selection Pin mapping. You can move these for your design if you want to
-        // Make sure all these values are consistent with your choice of midi_uart
-        static const uint MIDI_UART_NUM = 1;
-        static const uint LED_GPIO = 0; // change to 7 for test8 hardware
-        //static const uint MIDI_UART_TX_GPIO = 1;
-        //static const uint MIDI_UART_RX_GPIO = 2;
-        // On-board LED mapping. If no LED, set to NO_LED_GPIO
-        static const uint NO_LED_GPIO = 255;
-        static const uint USBA_PWR_EN_GPIO=18;
-        static const uint USBA_PWR_FLG_GPIO=19;
+      static void langid_cb(tuh_xfer_t *xfer);
+      static void prod_str_cb(tuh_xfer_t *xfer);
+      // UART selection Pin mapping. You can move these for your design if you want to
+      // Make sure all these values are consistent with your choice of midi_uart
+      static const uint LED_GPIO = 0; // change to 7 for test8 hardware
+      static const uint MIDI_UART_NUM = 1;
+      static const uint MIDI_UART_TX_GPIO = 18;
+      static const uint MIDI_UART_RX_GPIO = 255;
+      // On-board LED mapping. If no LED, set to NO_LED_GPIO
+      static const uint NO_LED_GPIO = 255;
+      //static const uint USBA_PWR_EN_GPIO=18;
+      //static const uint USBA_PWR_FLG_GPIO=19;
+      bool led_state;
 
-        static const uint8_t uart_devaddr = CFG_TUH_DEVICE_MAX + 1;
-        static const uint8_t usbdev_devaddr = CFG_TUH_DEVICE_MAX + 2;
-        static const uint8_t ble_devaddr = CFG_TUH_DEVICE_MAX + 3;
-        // Indexed by dev_addr
-        // device addresses start at 1. location 0 is unused
-        // extra entries are for the UART MIDI Port and USB device port and the BLE server port
-        Midi_device_info attached_devices[CFG_TUH_DEVICE_MAX + 4];
+      static const uint8_t uart_devaddr = CFG_TUH_DEVICE_MAX + 1;
+      static const uint8_t usbdev_devaddr = CFG_TUH_DEVICE_MAX + 2;
+      static const uint8_t ble_devaddr = CFG_TUH_DEVICE_MAX + 3;
+      // Indexed by dev_addr
+      // device addresses start at 1. location 0 is unused
+      // extra entries are for the UART MIDI Port and USB device port and the BLE server port
 
-        std::vector<Midi_out_port *> midi_out_port_list;
-        std::vector<Midi_in_port *> midi_in_port_list;
+#define octave_pins 13
+      uint octave_pin[octave_pins];
+      uint32_t octave_mask;
+      uint8_t octave_mask_shift;
 
-        Midi_in_port uart_midi_in_port;
-        Midi_out_port uart_midi_out_port;
-        Midi_in_port usbdev_midi_in_port;
-        Midi_out_port usbdev_midi_out_port;
-        Midi_in_port ble_midi_in_port;
-        Midi_out_port ble_midi_out_port;
-        #if RPPICOMIDI_PICO_W
-        BLE_MIDI_Manager blem;
-        bool blem_is_client;
-        #endif
-        Midi2PioUsbhub_cli cli;
-        bool cdc_state_has_changed;
-    };
+      // 0 - C-1, 12 - C0, 24 - C1, 36 - C2, 48 - C3, 60 - C4, 72 - C5, 84 - C6, 96 - C7
+      uint16_t pmask[octaves];
+      uint8_t line = 0;
+      uint8_t pline = 0;
+      uint16_t adc = 0;//adc_read();
+
+
+      Midi_device_info attached_devices[CFG_TUH_DEVICE_MAX + 4];
+
+      std::vector<Midi_out_port *> midi_out_port_list;
+      std::vector<Midi_in_port *> midi_in_port_list;
+
+      Midi_in_port uart_midi_in_port;
+      Midi_out_port uart_midi_out_port;
+      Midi_in_port usbdev_midi_in_port;
+      Midi_out_port usbdev_midi_out_port;
+      Midi_in_port ble_midi_in_port;
+      Midi_out_port ble_midi_out_port;
+#if RPPICOMIDI_PICO_W
+      BLE_MIDI_Manager blem;
+      bool blem_is_client;
+#endif
+      Midi2PioUsbhub_cli cli;
+      bool cdc_state_has_changed;
+  };
 }

@@ -26,22 +26,6 @@
 #include "hardware/adc.h"
 #include "hardware/dma.h"
 
-   
-
-#define octave_pins 13
-static const uint octave_pin[13] = {
-// C  C#  D   D#  E   F   F#  G   G#   A  A#   B   C
-  17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5};
-static uint32_t octave_mask = 0;
-static uint8_t octave_mask_shift = 0xff;
-const uint8_t octaves = 9;
-static const uint row_pin[octaves] = { 27, 22, 21, 20, 19, 1, 2, 3, 4 }; 
-
-// 0 - C-1, 12 - C0, 24 - C1, 36 - C2, 48 - C3, 60 - C4, 72 - C5, 84 - C6, 96 - C7
-static const uint row_note_offset[octaves] = { 36, 48, 60, 72, 84, 48, 48, 48, 48 };
-static const uint LED_GPIO = 0;
-static uint16_t pmask[octaves];
-
 // Because the PIO USB code runs in core 1
 // and USB MIDI OUT sends are triggered on core 0,
 // need to synchronize core startup
@@ -384,8 +368,6 @@ void rppicomidi::Midi2PioUsbhub::blink_led()
 {
     static absolute_time_t previous_timestamp = {0};
 
-    static bool led_state = false;
-
     // This design has no on-board LED
     if (NO_LED_GPIO == LED_GPIO)
         return;
@@ -422,9 +404,49 @@ void rppicomidi::Midi2PioUsbhub::flush_usb_tx()
     }
 }
 
-void rppicomidi::Midi2PioUsbhub::note(bool on, uint8_t note, uint8_t velocity){
+
+void rppicomidi::Midi2PioUsbhub::scan_timer(){
+  gpio_put(LED_GPIO, led_state);
+
+  if(adc_hw->cs & ADC_CS_READY_BITS){
+    adc = adc_hw->result;
+    hw_set_bits(&adc_hw->cs, ADC_CS_START_ONCE_BITS);
+  }else{
+    printf("ADC not ready\n");
+  }
+  uint32_t r = ((gpio_get_all() & octave_mask) >> octave_mask_shift);
+  uint16_t r1 = 0xffff&r;
+  uint16_t x = r1 ^ pmask[line];
+  if(x>0){
+    uint16_t press = x & r1;
+    uint16_t rel = x & ~r1;
+    if(rel>0) for (int i=0;i<octave_pins;i++){
+      if(rel & (1<<i))
+        note(false, row_note_offset[line]+i, adc >> 5, row_chan[line]);
+    }
+    if(press>0) for (int i=0;i<octave_pins;i++){
+      if(press & (1<<i))
+        note(true, row_note_offset[line]+i, adc >> 5, row_chan[line]);
+    }
+    printf("%d:%04x:%04x p %04x r %04x off %d a %d \n",line, r1, x, press, rel, row_note_offset[line], adc);
+  }
+  pline=line;
+  pmask[line] = r1;
+  line++;
+  if(line>=octaves) {
+    line=0;
+    led_state = !led_state;
+  }
+  gpio_put(row_pin[pline], 0);
+  gpio_put(row_pin[line], 1);
+
+}
+
+
+
+void rppicomidi::Midi2PioUsbhub::note(bool on, uint8_t note, uint8_t velocity, uint8_t chan){
   uint8_t txbuf[3];
-  txbuf[0] = 0x80+(on?0x10:0); // Note Off
+  txbuf[0] = 0x80+(on?0x10:0)+chan; // Note Off
   txbuf[1] = note; // Note Number
   txbuf[2] = velocity; // Velocity
   route_midi(default_out_port, txbuf, 3);
@@ -537,6 +559,30 @@ rppicomidi::Midi2PioUsbhub::Midi2PioUsbhub() : cli{&preset_manager}
     // board_init(); is called before this class is created in main();
     tud_init(BOARD_TUD_RHPORT);
     cdc_stdio_lib_init();
+    octave_mask = 0;
+    octave_mask_shift = 0xff;
+
+    //INIT data
+    static uint octave_pin_[octave_pins] = {
+          // C  C#  D   D#  E   F   F#  G   G#   A  A#   B   C
+          17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5};
+    static uint row_pin_[octaves] = { 27, 22, 21, 20, 19, 1, 2, 3, 4}; 
+    static uint row_note_offset_[octaves] = { 12, 24, 36, 48, 60, 48, 60, 72, 84 };
+    /*
+00: 27 12
+01: 22 24
+02: 21 36
+03: 20 48
+04: 19 60
+05: 01 48
+06: 02 60
+07: 03 72
+08: 04 84*/
+    static uint row_chan_[octaves] = { 2, 1, 1, 1, 1, 0, 0, 0, 0 };
+    memcpy(octave_pin, octave_pin_, sizeof(octave_pin_));
+    memcpy(row_pin, row_pin_, sizeof(row_pin_));
+    memcpy(row_note_offset, row_note_offset_, sizeof(row_note_offset_));
+    memcpy(row_chan, row_chan_, sizeof(row_chan_));
 
 #ifdef RPPICOMIDI_PICO_W
     blem_is_client = blem.is_client_mode();
@@ -563,11 +609,12 @@ rppicomidi::Midi2PioUsbhub::Midi2PioUsbhub() : cli{&preset_manager}
         }
     }
 
-    gpio_init(USBA_PWR_EN_GPIO);
-    gpio_put(USBA_PWR_EN_GPIO, 0);
-    gpio_set_dir(USBA_PWR_EN_GPIO, GPIO_OUT);
-    gpio_put(USBA_PWR_EN_GPIO, 1);
-    //midi_uart_instance = midi_uart_configure(MIDI_UART_NUM, MIDI_UART_TX_GPIO, MIDI_UART_RX_GPIO);
+//    gpio_init(USBA_PWR_EN_GPIO);
+//    gpio_put(USBA_PWR_EN_GPIO, 0);
+//    gpio_set_dir(USBA_PWR_EN_GPIO, GPIO_OUT);
+//    gpio_put(USBA_PWR_EN_GPIO, 1);
+    midi_uart_instance = midi_uart_configure(MIDI_UART_NUM, MIDI_UART_TX_GPIO, MIDI_UART_RX_GPIO);
+
     printf("Configured MIDI UART %u for 31250 baud\r\n", MIDI_UART_NUM);
     while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
     {
@@ -739,14 +786,9 @@ void rppicomidi::Midi2PioUsbhub::load_current_preset()
 }
 
 static bool repeating_timer_callback(struct repeating_timer *t) {
-  static uint8_t line = 0;
-  static uint8_t pline = 0;
   rppicomidi::Midi2PioUsbhub &instance = *(rppicomidi::Midi2PioUsbhub *)t->user_data;
 
-  static bool led_state = false;
-  gpio_put(LED_GPIO, led_state);
-
-  //txbuf[0] = 0x90; // Note On
+    //txbuf[0] = 0x90; // Note On
   //note off
   /*
   txbuf[0] = 0x80+(led_state?0x10:0); // Note Off
@@ -756,40 +798,7 @@ static bool repeating_timer_callback(struct repeating_timer *t) {
   instance.route_midi(instance.default_out_port, txbuf, 3);
   */
   
-
-  uint16_t adc = 0;//adc_read();
-  if(adc_hw->cs & ADC_CS_READY_BITS){
-    adc = adc_hw->result;
-    hw_set_bits(&adc_hw->cs, ADC_CS_START_ONCE_BITS);
-  }else{
-    printf("ADC not ready\n");
-  }
-  uint32_t r = ((gpio_get_all() & octave_mask) >> octave_mask_shift);
-  uint16_t r1 = 0xffff&r;
-  uint16_t x = r1 ^ pmask[line];
-  if(x>0){
-    uint16_t press = x & r1;
-    uint16_t rel = x & ~r1;
-    if(rel>0) for (int i=0;i<octave_pins;i++){
-      if(rel & (1<<i))
-        instance.note(false, row_note_offset[line]+i, adc >> 5);
-    }
-    if(press>0) for (int i=0;i<octave_pins;i++){
-      if(press & (1<<i))
-        instance.note(true, row_note_offset[line]+i, adc >> 5);
-    }
-    printf("%d:%04x:%04x p %04x r %04x off %d a %d \n",line, r1, x, press, rel, row_note_offset[line], adc);
-  }
-  pline=line;
-  pmask[line] = r1;
-  line++;
-  if(line>=octaves) {
-    line=0;
-    led_state = !led_state;
-  }
-  gpio_put(row_pin[pline], 0);
-  gpio_put(row_pin[line], 1);
-
+  instance.scan_timer();
 
   return true;
 }

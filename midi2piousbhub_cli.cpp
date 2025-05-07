@@ -54,7 +54,14 @@ rppicomidi::Midi2PioUsbhub_cli::Midi2PioUsbhub_cli(Preset_manager* pm)
     cli = embeddedCliNew(&cli_config);
     cli->onCommand = onCommandFn;
     cli->writeChar = writeCharFn;
-    volatile bool result = embeddedCliAddBinding(cli, {"connect",
+    volatile bool result = embeddedCliAddBinding(cli, {"set_offset",
+                                       "Set midi offset of <CHANNEL> to <MIDI note>",
+                                       true,
+                                       this,
+                                       static_offset});
+    assert(result);
+
+    result = embeddedCliAddBinding(cli, {"connect",
                                        "Route MIDI streams. usage: connect <FROM nickname> <TO nickname>",
                                        true,
                                        this,
@@ -150,6 +157,25 @@ void rppicomidi::Midi2PioUsbhub_cli::static_list(EmbeddedCli *, char *, void *)
             }
         }
     }
+}
+
+void rppicomidi::Midi2PioUsbhub_cli::static_offset(EmbeddedCli *cli, char *args, void *)
+{
+    (void)cli;
+    if (embeddedCliGetTokenCount(args) != 2) {
+        printf("offset <CHANNEL> to <MIDI note>\r\n");
+        printf("id pin off\r\n");
+        for (auto coctave = 0; coctave < Midi2PioUsbhub::instance().octaves; coctave++) {
+          printf("%02d: %02d %02d\r\n", coctave,
+              Midi2PioUsbhub::instance().row_pin[coctave],
+              Midi2PioUsbhub::instance().row_note_offset[coctave]
+              );
+        }
+        return;
+    }
+    auto chan = std::stoi(std::string(embeddedCliGetToken(args, 1)));
+    auto offset = std::stoi(std::string(embeddedCliGetToken(args, 2)));
+    Midi2PioUsbhub::instance().row_note_offset[chan]=offset;
 }
 
 void rppicomidi::Midi2PioUsbhub_cli::static_connect(EmbeddedCli *cli, char *args, void *)

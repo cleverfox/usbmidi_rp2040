@@ -76,6 +76,7 @@ private:
 
     // The following are CLI functions
     static void static_list(EmbeddedCli *, char *, void *);
+    static void static_offset(EmbeddedCli *, char *, void *);
     static void static_connect(EmbeddedCli *, char *, void *);
     static void static_disconnect(EmbeddedCli *, char *, void *);
     static void static_show(EmbeddedCli *, char *, void *);
