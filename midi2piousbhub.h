@@ -207,11 +207,11 @@ namespace rppicomidi
         // UART selection Pin mapping. You can move these for your design if you want to
         // Make sure all these values are consistent with your choice of midi_uart
         static const uint MIDI_UART_NUM = 1;
-        static const uint MIDI_UART_TX_GPIO = 4;
-        static const uint MIDI_UART_RX_GPIO = 5;
+        static const uint LED_GPIO = 0; // change to 7 for test8 hardware
+        //static const uint MIDI_UART_TX_GPIO = 1;
+        //static const uint MIDI_UART_RX_GPIO = 2;
         // On-board LED mapping. If no LED, set to NO_LED_GPIO
         static const uint NO_LED_GPIO = 255;
-        static const uint LED_GPIO = 0; // change to 7 for test8 hardware
         static const uint USBA_PWR_EN_GPIO=18;
         static const uint USBA_PWR_FLG_GPIO=19;
 

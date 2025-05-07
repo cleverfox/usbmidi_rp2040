@@ -28,21 +28,19 @@
 
    
 
-static const uint octave_pin[12] = {
-  17, 16, 15, 14, 
-  13, 12, 11, 10, 
-  9, 8, 7, 6};
+#define octave_pins 13
+static const uint octave_pin[13] = {
+// C  C#  D   D#  E   F   F#  G   G#   A  A#   B   C
+  17, 16, 15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5};
 static uint32_t octave_mask = 0;
 static uint8_t octave_mask_shift = 0xff;
-const uint8_t octaves = 4;
-static const uint row_pin[octaves] = { 22, 21, 20, 19 }; 
-static const uint row_note_offset[octaves] = { 73, 37, 49, 61 }; 
+const uint8_t octaves = 9;
+static const uint row_pin[octaves] = { 27, 22, 21, 20, 19, 1, 2, 3, 4 }; 
+
+// 0 - C-1, 12 - C0, 24 - C1, 36 - C2, 48 - C3, 60 - C4, 72 - C5, 84 - C6, 96 - C7
+static const uint row_note_offset[octaves] = { 36, 48, 60, 72, 84, 48, 48, 48, 48 };
 static const uint LED_GPIO = 0;
 static uint16_t pmask[octaves];
-
-#define CAPTURE_DEPTH 100
-uint8_t capture_buf[CAPTURE_DEPTH];
-
 
 // Because the PIO USB code runs in core 1
 // and USB MIDI OUT sends are triggered on core 0,
@@ -534,7 +532,7 @@ rppicomidi::Midi2PioUsbhub::Midi2PioUsbhub() : cli{&preset_manager}
 {
     bi_decl(bi_program_description("Provide a USB host interface for Serial Port MIDI."));
     bi_decl(bi_1pin_with_name(LED_GPIO, "On-board LED"));
-    bi_decl(bi_2pins_with_names(MIDI_UART_TX_GPIO, "MIDI UART TX", MIDI_UART_RX_GPIO, "MIDI UART RX"));
+    //bi_decl(bi_2pins_with_names(MIDI_UART_TX_GPIO, "MIDI UART TX", MIDI_UART_RX_GPIO, "MIDI UART RX"));
 
     // board_init(); is called before this class is created in main();
     tud_init(BOARD_TUD_RHPORT);
@@ -553,7 +551,7 @@ rppicomidi::Midi2PioUsbhub::Midi2PioUsbhub() : cli{&preset_manager}
         gpio_put(row_pin[i], 0);
     }
 
-    for(int i=0;i<12;i++)
+    for(int i=0;i<octave_pins;i++)
     {
         gpio_init(octave_pin[i]);
         gpio_set_dir(octave_pin[i], GPIO_IN);
@@ -569,7 +567,7 @@ rppicomidi::Midi2PioUsbhub::Midi2PioUsbhub() : cli{&preset_manager}
     gpio_put(USBA_PWR_EN_GPIO, 0);
     gpio_set_dir(USBA_PWR_EN_GPIO, GPIO_OUT);
     gpio_put(USBA_PWR_EN_GPIO, 1);
-    midi_uart_instance = midi_uart_configure(MIDI_UART_NUM, MIDI_UART_TX_GPIO, MIDI_UART_RX_GPIO);
+    //midi_uart_instance = midi_uart_configure(MIDI_UART_NUM, MIDI_UART_TX_GPIO, MIDI_UART_RX_GPIO);
     printf("Configured MIDI UART %u for 31250 baud\r\n", MIDI_UART_NUM);
     while (getchar_timeout_us(0) != PICO_ERROR_TIMEOUT)
     {
@@ -772,18 +770,16 @@ static bool repeating_timer_callback(struct repeating_timer *t) {
   if(x>0){
     uint16_t press = x & r1;
     uint16_t rel = x & ~r1;
-    if(rel>0) for (int i=0;i<12;i++){
+    if(rel>0) for (int i=0;i<octave_pins;i++){
       if(rel & (1<<i))
         instance.note(false, row_note_offset[line]+i, adc >> 5);
     }
-    if(press>0) for (int i=0;i<12;i++){
+    if(press>0) for (int i=0;i<octave_pins;i++){
       if(press & (1<<i))
         instance.note(true, row_note_offset[line]+i, adc >> 5);
     }
     printf("%d:%04x:%04x p %04x r %04x off %d a %d \n",line, r1, x, press, rel, row_note_offset[line], adc);
   }
-  gpio_put(row_pin[pline], 0);
-  gpio_put(row_pin[line], 1);
   pline=line;
   pmask[line] = r1;
   line++;
@@ -791,6 +787,8 @@ static bool repeating_timer_callback(struct repeating_timer *t) {
     line=0;
     led_state = !led_state;
   }
+  gpio_put(row_pin[pline], 0);
+  gpio_put(row_pin[line], 1);
 
 
   return true;
@@ -828,66 +826,12 @@ int main()
     adc_gpio_init(26 + CAPTURE_CHANNEL);
     adc_init();
     adc_select_input(CAPTURE_CHANNEL);
-    //gpio_disable_pulls(26 + CAPTURE_CHANNEL);
-    //gpio_set_input_enabled(26 + CAPTURE_CHANNEL, false);
-    /*
-    adc_fifo_setup(
-        true,    // Write each completed conversion to the sample FIFO
-        true,    // Enable DMA data request (DREQ)
-        1,       // DREQ (and IRQ) asserted when at least 1 sample present
-        false,   // We won't see the ERR bit because of 8 bit reads; disable.
-        true     // Shift each sample to 8 bits when pushing to FIFO
-    );
-    adc_set_clkdiv(64);
-    printf("Arming DMA\n");
-    sleep_ms(1000);
-    // Set up the DMA to start transferring data as soon as it appears in FIFO
-    uint dma_chan = dma_claim_unused_channel(true);
-    dma_channel_config cfg = dma_channel_get_default_config(dma_chan);
-
-    // Reading from constant address, writing to incrementing byte addresses
-    channel_config_set_transfer_data_size(&cfg, DMA_SIZE_8);
-    channel_config_set_read_increment(&cfg, false);
-    channel_config_set_write_increment(&cfg, true);
-
-    // Pace transfers based on availability of ADC samples
-    channel_config_set_dreq(&cfg, DREQ_ADC);
-
-    dma_channel_configure(dma_chan, &cfg,
-        capture_buf,    // dst
-        &adc_hw->fifo,  // src
-        CAPTURE_DEPTH,  // transfer count
-        true            // start immediately
-    );
-    */
+    
     adc_read();
 
 
     while (1) {
         instance.task();
-
-#if 0
-    printf("Starting capture\n");
-    adc_run(true);
-
-    // Once DMA finishes, stop any new conversions from starting, and clean up
-    // the FIFO in case the ADC was still mid-conversion.
-    /*
-    dma_channel_wait_for_finish_blocking(dma_chan);
-    printf("Capture finished\n");
-    adc_run(false);
-    adc_fifo_drain();
-    */
-
-    /*
-    // Print samples to stdout so you can display them in pyplot, excel, matlab
-    for (int i = 0; i < CAPTURE_DEPTH; ++i) {
-        printf("%-3d, ", capture_buf[i]);
-        if (i % 10 == 9)
-            printf("\n");
-    }
-    */
-#endif
     }
 }
 
